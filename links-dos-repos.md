@@ -12,4 +12,4 @@
 
 ## Documentação
 
-- Repositório de documentação: https://github.com/Artur-Duarte17/sd_academico_docs
+- Repositório da documentação: https://github.com/Artur-Duarte17/sd_academico_docs
