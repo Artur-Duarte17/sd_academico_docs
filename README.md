@@ -292,15 +292,21 @@ A primeira execução demora alguns minutos (compila os 7 serviços); depois fic
 
 ### 5.4. Documentação das APIs (Swagger / OpenAPI)
 
-Cada serviço REST expõe sua documentação interativa via **Springdoc OpenAPI** (Swagger UI). Após subir o ambiente, acesse:
+Cada serviço REST expõe sua documentação interativa via **Springdoc OpenAPI** (Swagger UI). Toda a documentação está **centralizada no API Gateway**, em uma única URL:
 
-| Serviço | Swagger UI | OpenAPI JSON |
-|---------|------------|--------------|
-| matricula-service   | http://localhost:8081/swagger-ui.html | http://localhost:8081/v3/api-docs |
-| aluno-service       | http://localhost:8082/swagger-ui.html | http://localhost:8082/v3/api-docs |
-| disciplina-service  | http://localhost:8083/swagger-ui.html | http://localhost:8083/v3/api-docs |
-| turma-service       | http://localhost:8084/swagger-ui.html | http://localhost:8084/v3/api-docs |
-| notificacao-service | http://localhost:8085/swagger-ui.html | http://localhost:8085/v3/api-docs |
-| historico-service   | http://localhost:8086/swagger-ui.html | http://localhost:8086/v3/api-docs |
+**➡️ http://localhost:8080/swagger-ui.html**
 
-> O Swagger UI permite testar os endpoints REST direto do navegador (ex.: criar/cancelar matrícula no `matricula-service`), sendo uma alternativa prática para a demonstração das comunicações.
+Nessa página há um **dropdown** no canto superior direito para alternar entre os serviços (Aluno, Disciplina, Turma, Matrícula, Notificação e Histórico). O gateway faz proxy do `/v3/api-docs` de cada serviço (mesma origem, sem CORS), e os endpoints podem ser testados pelo "Try it out" — as chamadas passam pelo gateway (ex.: `POST http://localhost:8080/matricula/matriculas`).
+
+Cada serviço também continua expondo o Swagger localmente (útil em desenvolvimento isolado):
+
+| Serviço | Swagger UI direto | Via Gateway (OpenAPI JSON) |
+|---------|-------------------|----------------------------|
+| matricula-service   | http://localhost:8081/swagger-ui.html | http://localhost:8080/matricula/v3/api-docs |
+| aluno-service       | http://localhost:8082/swagger-ui.html | http://localhost:8080/aluno/v3/api-docs |
+| disciplina-service  | http://localhost:8083/swagger-ui.html | http://localhost:8080/disciplina/v3/api-docs |
+| turma-service       | http://localhost:8084/swagger-ui.html | http://localhost:8080/turma/v3/api-docs |
+| notificacao-service | http://localhost:8085/swagger-ui.html | http://localhost:8080/notificacao/v3/api-docs |
+| historico-service   | http://localhost:8086/swagger-ui.html | http://localhost:8080/historico/v3/api-docs |
+
+> O Swagger UI permite testar os endpoints REST direto do navegador (ex.: criar/cancelar matrícula), sendo uma alternativa prática para a demonstração das comunicações.
