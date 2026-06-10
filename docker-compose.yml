@@ -57,6 +57,22 @@ services:
     networks: [sd-net]
 
   # ---------------------------------------------------------------------------
+  # API Gateway (ponto unico de entrada + Swagger centralizado)
+  # ---------------------------------------------------------------------------
+  gateway:
+    build: ../sd_academico_gateway
+    container_name: gateway
+    ports:
+      - "8080:8080"   # Swagger unico: http://localhost:8080/swagger-ui.html
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks: [sd-net]
+
+  # ---------------------------------------------------------------------------
   # Microsserviços
   # ---------------------------------------------------------------------------
   aluno-service:
