@@ -16,15 +16,15 @@ Stack: Spring Boot 3 / Java 21, Spring Cloud (Eureka + OpenFeign), gRPC, RabbitM
 
 ## 1. Microsserviços
 
-| Serviço | Papel | Banco |
-|---------|-------|-------|
-| **Eureka Server** | Serviço de nomes / Service Discovery (registra e localiza os demais serviços) | - |
-| **Aluno Service** | CRUD de alunos; expõe consultas de existência/estado (ATIVO) | H2 `alunodb` |
-| **Disciplina Service** | CRUD de disciplinas | H2 `disciplinadb` |
-| **Turma Service** | CRUD de turmas e controle de **vagas**; expõe o **servidor gRPC** | H2 `turmadb` |
-| **Matrícula Service** | Orquestra a matrícula (cliente gRPC + Feign + produtor de eventos) | H2 `matriculadb` |
-| **Notificação Service** | Consome filas/eventos e registra notificações | H2 `notificacaodb` |
-| **Histórico Service** | Consome eventos e registra o histórico acadêmico | H2 `historicodb` |
+| Serviço                 | Papel                                                                         | Banco              |
+| ----------------------- | ----------------------------------------------------------------------------- | ------------------ |
+| **Eureka Server**       | Serviço de nomes / Service Discovery (registra e localiza os demais serviços) | -                  |
+| **Aluno Service**       | CRUD de alunos; expõe consultas de existência/estado (ATIVO)                  | H2 `alunodb`       |
+| **Disciplina Service**  | CRUD de disciplinas                                                           | H2 `disciplinadb`  |
+| **Turma Service**       | CRUD de turmas e controle de **vagas**; expõe o **servidor gRPC**             | H2 `turmadb`       |
+| **Matrícula Service**   | Orquestra a matrícula (cliente gRPC + Feign + produtor de eventos)            | H2 `matriculadb`   |
+| **Notificação Service** | Consome filas/eventos e registra notificações                                 | H2 `notificacaodb` |
+| **Histórico Service**   | Consome eventos e registra o histórico acadêmico                              | H2 `historicodb`   |
 
 Cada microsserviço possui seu próprio repositório. Este repositório (`sd_academico_docs`) contém a documentação central, evidências, relatório, slides e o `docker-compose.yml` que sobe todo o ambiente.
 
@@ -59,7 +59,7 @@ public class TurmaGrpcServiceImpl extends TurmaGrpcServiceGrpc.TurmaGrpcServiceI
 }
 ```
 
-**Cliente gRPC, Matrícula Service** (`GrpcClientConfiguration` cria o *stub* síncrono / *blocking stub*):
+**Cliente gRPC, Matrícula Service** (`GrpcClientConfiguration` cria o _stub_ síncrono / _blocking stub_):
 
 ```java
 @Bean
@@ -68,7 +68,7 @@ TurmaGrpcServiceGrpc.TurmaGrpcServiceBlockingStub turmaGrpcStub(GrpcChannelFacto
 }
 ```
 
-O Matrícula Service chama o *stub* como se fosse um método local (transparência de acesso). Ao criar uma matrícula ele **reserva** a vaga; ao cancelar, **libera** a vaga:
+O Matrícula Service chama o _stub_ como se fosse um método local (transparência de acesso). Ao criar uma matrícula ele **reserva** a vaga; ao cancelar, **libera** a vaga:
 
 ```java
 ReservaVagaResponse reserva = turmaGrpcStub.reservarVaga(
@@ -97,10 +97,10 @@ rabbitTemplate.convertAndSend(
 
 **Dois assinantes**, cada um com **sua própria fila** ligada (binding) ao mesmo exchange, recebem **cópias independentes** do evento (fan-out por routing key):
 
-| Serviço | Fila | Binding (routing keys) |
-|---------|------|------------------------|
+| Serviço             | Fila                       | Binding (routing keys)                    |
+| ------------------- | -------------------------- | ----------------------------------------- |
 | Notificação Service | `queue.evento.notificacao` | `matricula.criada`, `matricula.cancelada` |
-| Histórico Service | `queue.evento.historico` | `matricula.criada`, `matricula.cancelada` |
+| Histórico Service   | `queue.evento.historico`   | `matricula.criada`, `matricula.cancelada` |
 
 ```java
 // Consumidor: Histórico Service
@@ -182,60 +182,115 @@ O **cancelamento** é simétrico: `LiberarVaga` via gRPC mais o evento `matricul
 
 ### 3.2. Principais conceitos aplicados
 
-- **Arquitetura de microsserviços** com banco isolado por serviço (*database per service*), garantindo autonomia e baixo acoplamento.
+- **Arquitetura de microsserviços** com banco isolado por serviço (_database per service_), garantindo autonomia e baixo acoplamento.
 - **Comunicação síncrona x assíncrona**: gRPC/REST (síncrona, requer resposta imediata) vs RabbitMQ (assíncrona, desacoplada no tempo).
-- **RPC com IDL**: contrato `.proto` (Protocol Buffers) gerando *stubs* cliente/servidor.
+- **RPC com IDL**: contrato `.proto` (Protocol Buffers) gerando _stubs_ cliente/servidor.
 - **Mensageria**: Exchange/Queue/Binding, Topic Exchange, routing keys, Pub/Sub e Work Queue.
 - **Service Discovery / serviço de nomes**: registro e resolução por nome lógico (Eureka) + balanceamento client-side (Feign).
-- **Tolerância a falhas**: tratamento de indisponibilidade (`*ServiceIndisponivelException`), publicação *best-effort* e **compensação (saga)** para manter a consistência sem transação distribuída.
+- **Tolerância a falhas**: tratamento de indisponibilidade (`*ServiceIndisponivelException`), publicação _best-effort_ e **compensação (saga)** para manter a consistência sem transação distribuída.
 
 ### 3.3. Mapeamento entre código e teoria
 
-| Conceito (teoria de sala) | Onde está no código |
-|---------------------------|---------------------|
-| Invocação remota (RPC) | `turma.proto`; `GrpcClientConfiguration` (stub cliente); `TurmaGrpcServiceImpl` (servidor) |
-| IDL / serialização binária | `turma.proto` (Protocol Buffers) gera as classes `*Request`/`*Response`/`*Grpc` |
-| Chamada síncrona | `turmaGrpcStub.reservarVaga(...)` em `MatriculaService` |
-| Comunicação por REST remota | `AlunoClient`, `DisciplinaClient` (OpenFeign) |
-| Serviço de nomes / discovery | `@EnableEurekaServer`; `eureka.client.*` nos `application.properties`; `@FeignClient(name=...)` |
-| Transparência de localização | resolução por `spring.application.name` (Feign) e canal `"turma-service"` (gRPC) |
-| Mensageria (produtor) | `rabbitTemplate.convertAndSend("academico.events", ...)` em `MatriculaService` |
-| Mensageria, Pub/Sub (Topic Exchange) | `RabbitMQConfig` de Notificação/Histórico (Exchange + Queue + Binding) |
-| Mensageria (consumidor assíncrono) | `@RabbitListener` em `EventoNotificacaoListener`, `EventoHistoricoListener` |
-| Fila de trabalho (point-to-point) | `fila.notificacoes` + `NotificacaoListener` |
-| Tolerância a falhas / saga | `compensarLiberandoVaga` / `compensarReservandoVaga`; publicação *best-effort* |
+| Conceito (teoria de sala)            | Onde está no código                                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| Invocação remota (RPC)               | `turma.proto`; `GrpcClientConfiguration` (stub cliente); `TurmaGrpcServiceImpl` (servidor)      |
+| IDL / serialização binária           | `turma.proto` (Protocol Buffers) gera as classes `*Request`/`*Response`/`*Grpc`                 |
+| Chamada síncrona                     | `turmaGrpcStub.reservarVaga(...)` em `MatriculaService`                                         |
+| Comunicação por REST remota          | `AlunoClient`, `DisciplinaClient` (OpenFeign)                                                   |
+| Serviço de nomes / discovery         | `@EnableEurekaServer`; `eureka.client.*` nos `application.properties`; `@FeignClient(name=...)` |
+| Transparência de localização         | resolução por `spring.application.name` (Feign) e canal `"turma-service"` (gRPC)                |
+| Mensageria (produtor)                | `rabbitTemplate.convertAndSend("academico.events", ...)` em `MatriculaService`                  |
+| Mensageria, Pub/Sub (Topic Exchange) | `RabbitMQConfig` de Notificação/Histórico (Exchange + Queue + Binding)                          |
+| Mensageria (consumidor assíncrono)   | `@RabbitListener` em `EventoNotificacaoListener`, `EventoHistoricoListener`                     |
+| Fila de trabalho (point-to-point)    | `fila.notificacoes` + `NotificacaoListener`                                                     |
+| Tolerância a falhas / saga           | `compensarLiberandoVaga` / `compensarReservandoVaga`; publicação _best-effort_                  |
 
 ### 3.4. Transparências aplicadas
 
-| Transparência | Como é alcançada no projeto |
-|---------------|-----------------------------|
-| **Acesso** | gRPC e Feign expõem chamadas remotas como métodos/interfaces locais; o código cliente não trata serialização nem protocolo de rede explicitamente. |
-| **Localização** | Serviços são acessados por **nome lógico** (`aluno-service`, `turma-service`) resolvido pelo Eureka, sem nenhum IP/porta fixo no código de negócio. |
-| **Falhas** | Indisponibilidades viram exceções tratadas; eventos *best-effort* não derrubam o fluxo; **compensação (saga)** mantém a consistência mesmo com falha parcial. |
-| **Concorrência** | Cada serviço tem seu próprio H2; o RabbitMQ enfileira e entrega mensagens sem que produtores/consumidores coordenem acesso direto a dados compartilhados. |
-| **Replicação / escala** | O balanceamento client-side do Feign sobre o registro do Eureka permite múltiplas instâncias de um serviço sob o mesmo nome lógico. |
+| Transparência           | Como é alcançada no projeto                                                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Acesso**              | gRPC e Feign expõem chamadas remotas como métodos/interfaces locais; o código cliente não trata serialização nem protocolo de rede explicitamente.            |
+| **Localização**         | Serviços são acessados por **nome lógico** (`aluno-service`, `turma-service`) resolvido pelo Eureka, sem nenhum IP/porta fixo no código de negócio.           |
+| **Falhas**              | Indisponibilidades viram exceções tratadas; eventos _best-effort_ não derrubam o fluxo; **compensação (saga)** mantém a consistência mesmo com falha parcial. |
+| **Concorrência**        | Cada serviço tem seu próprio H2; o RabbitMQ enfileira e entrega mensagens sem que produtores/consumidores coordenem acesso direto a dados compartilhados.     |
+| **Replicação / escala** | O balanceamento client-side do Feign sobre o registro do Eureka permite múltiplas instâncias de um serviço sob o mesmo nome lógico.                           |
 
 ---
 
 ## 4. Evidências
 
-As evidências das comunicações ficam na pasta [`evidencias/`](evidencias/):
+As evidências das comunicações ficam na pasta [`evidencias/`](evidencias/).
 
-- **Service Discovery (Eureka):** painel em `http://localhost:8761` mostrando os 7 serviços `UP` registrados.
-- **Mensageria (RabbitMQ):** painel em `http://localhost:15672` (guest/guest), ver [`evidencias/rabbitmq-management-home.png`](evidencias/rabbitmq-management-home.png), exibindo o exchange `academico.events`, as filas `queue.evento.notificacao`, `queue.evento.historico`, `fila.notificacoes` e os logs em `logs.all`.
-- **RPC (gRPC):** logs do `turma-service` (`[TURMA-SERVICE] gRPC ReservarVaga chamado...`) e do `matricula-service` ao criar/cancelar uma matrícula.
-- **Eventos (Pub/Sub):** logs `[NOTIFICACAO-SERVICE] Evento recebido` e `[HISTORICO-SERVICE] Evento registrado no histórico` após uma matrícula, comprovando que **uma** publicação chega a **dois** consumidores independentes.
+### 4.1. Ambiente no ar (Docker Compose)
+
+Todos os serviços sobem como containers a partir do `docker-compose.yml`:
+
+![Containers em execução no Docker Desktop](evidencias/docker-desktop-containers.png)
+
+### 4.2. Service Discovery (Eureka)
+
+Painel em `http://localhost:8761` mostrando os 7 serviços (`ALUNO`, `DISCIPLINA`, `GATEWAY`, `HISTORICO`, `MATRICULA`, `NOTIFICACAO`, `TURMA`) registrados e `UP`:
+
+![Instâncias registradas no Eureka](evidencias/eureka-instances-up.jpeg)
+
+### 4.3. Mensageria (RabbitMQ)
+
+Painel em `http://localhost:15672` (guest/guest) com o exchange `academico.events`, as filas `queue.evento.notificacao`, `queue.evento.historico`, `fila.notificacoes` e os logs em `logs.all`.
+
+Estado inicial (sistema ocioso, sem mensagens em trânsito — conexões e filas zeradas):
+
+![Visão geral do RabbitMQ ocioso](evidencias/rabbitmq-management-home.png)
+
+Durante o fluxo de matrícula, o overview mostra as conexões, filas e consumidores ativos:
+
+![Visão geral do RabbitMQ com conexões e filas ativas](evidencias/rabbitmq-overview.png)
+
+As 4 filas declaradas pelos serviços, todas `running` e com seus consumidores conectados — `fila.notificacoes` (work queue), `queue.evento.historico` e `queue.evento.notificacao` (Pub/Sub de eventos) e `logs.all` (Pub/Sub de logs):
+
+![Filas do RabbitMQ na aba Queues and Streams](evidencias/rabbitmq-queues.png)
+
+### 4.4. Fluxo de matrícula via Swagger (API Gateway)
+
+Criação da matrícula pela UI única do gateway (`POST http://localhost:8080/matricula/matriculas` → `201`):
+
+![POST de matrícula no Swagger retornando 201](evidencias/swagger-matricula-post.png)
+
+Consultas confirmando o efeito do fluxo — a matrícula persistida, a vaga reservada na turma (via gRPC) e o registro no histórico (via evento):
+
+![GET de matrículas no Swagger](evidencias/swagger-matricula-get.png)
+
+![GET de históricos no Swagger](evidencias/swagger-historico-get.png)
+
+**Antes e depois da reserva de vaga (gRPC):** consultando `GET /turma/turmas` antes e depois da matrícula, o campo `vagasOcupadas` da turma (id 1) sobe de **5 para 6**. Isso comprova que o `ReservarVaga` chamado por gRPC pelo Matrícula Service efetivou a reserva no Turma Service:
+
+![GET de turmas antes da matrícula: vagasOcupadas = 5](evidencias/swagger-turma-get-antes.png)
+
+![GET de turmas depois da matrícula: vagasOcupadas = 6](evidencias/swagger-turma-get-depois.png)
+
+### 4.5. RPC síncrono (gRPC): Matrícula → Turma
+
+Logs do `matricula-service` (recebe o `POST /matriculas` e publica o evento) e do `turma-service` (`[TURMA-SERVICE] gRPC ReservarVaga chamado...` reservando a vaga):
+
+![Logs do matricula-service: POST e evento publicado](evidencias/logs-matricula-service.png)
+
+![Logs do turma-service: chamada gRPC ReservarVaga](evidencias/logs-turma-grpc.png)
+
+### 4.6. Eventos (Pub/Sub): uma publicação, dois consumidores
+
+Após a matrícula, o `historico-service` registra o evento de forma assíncrona e independente (`[HISTORICO-SERVICE] Evento recebido` → `Evento registrado no histórico`), comprovando que **uma** publicação no exchange `academico.events` chega a **dois** consumidores independentes (Histórico e Notificação):
+
+![Logs do historico-service consumindo o evento](evidencias/logs-historico-service.png)
 
 **Onde cada conceito foi aplicado (resumo):**
 
-| Conceito | Serviço(s) | Porta / recurso |
-|----------|-----------|-----------------|
-| Service Discovery | Eureka Server | `8761` |
-| RPC síncrono (gRPC) | Matrícula (cliente) → Turma (servidor) | gRPC `9093` |
-| REST/Feign (via discovery) | Matrícula → Aluno; Turma → Disciplina | HTTP |
-| Pub/Sub (eventos) | Matrícula → Notificação + Histórico | exchange `academico.events` |
-| Fila direta (work queue) | Notificação | fila `fila.notificacoes` |
-| Pub/Sub de logs | Todos | exchange `logs.academico` → fila `logs.all` |
+| Conceito                   | Serviço(s)                             | Porta / recurso                             |
+| -------------------------- | -------------------------------------- | ------------------------------------------- |
+| Service Discovery          | Eureka Server                          | `8761`                                      |
+| RPC síncrono (gRPC)        | Matrícula (cliente) → Turma (servidor) | gRPC `9093`                                 |
+| REST/Feign (via discovery) | Matrícula → Aluno; Turma → Disciplina  | HTTP                                        |
+| Pub/Sub (eventos)          | Matrícula → Notificação + Histórico    | exchange `academico.events`                 |
+| Fila direta (work queue)   | Notificação                            | fila `fila.notificacoes`                    |
+| Pub/Sub de logs            | Todos                                  | exchange `logs.academico` → fila `logs.all` |
 
 > Sugestão de roteiro de demonstração: subir o ambiente (seção 5) → abrir Eureka e RabbitMQ → criar uma matrícula → observar nos logs a chamada gRPC, e em seguida os dois consumidores recebendo o evento; cancelar a matrícula e repetir.
 
@@ -277,16 +332,16 @@ A primeira execução demora alguns minutos (compila os 7 serviços); depois fic
 
 ### 5.3. Portas (no host)
 
-| Serviço             | Endereço                          |
-|---------------------|-----------------------------------|
-| Eureka (painel)     | http://localhost:8761             |
-| matricula-service   | http://localhost:8081             |
-| aluno-service       | http://localhost:8082             |
-| disciplina-service  | http://localhost:8083             |
+| Serviço             | Endereço                                   |
+| ------------------- | ------------------------------------------ |
+| Eureka (painel)     | http://localhost:8761                      |
+| matricula-service   | http://localhost:8081                      |
+| aluno-service       | http://localhost:8082                      |
+| disciplina-service  | http://localhost:8083                      |
 | turma-service       | http://localhost:8084 (HTTP) / 9093 (gRPC) |
-| notificacao-service | http://localhost:8085             |
-| historico-service   | http://localhost:8086             |
-| RabbitMQ (painel)   | http://localhost:15672 (guest/guest) |
+| notificacao-service | http://localhost:8085                      |
+| historico-service   | http://localhost:8086                      |
+| RabbitMQ (painel)   | http://localhost:15672 (guest/guest)       |
 
 > Observação: o `turma-service` usa a porta **8084** (HTTP) para não conflitar com o `disciplina-service` (8083); o servidor gRPC do turma continua na **9093**.
 
