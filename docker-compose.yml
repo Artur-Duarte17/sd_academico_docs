@@ -1,11 +1,161 @@
-version: '3.8'
+name: sd-academico
+
+# IMPORTANTE: este compose espera que todos os repositorios dos servicos estejam
+# clonados na MESMA pasta que o repositorio sd_academico_docs, ou seja:
+#
+#   Trabalho de Sistemas Distribuidos/
+#   |- sd_academico_docs/            <- (voce esta aqui, rode o compose daqui)
+#   |- sd_academico_eureka_server/
+#   |- sd_academico_aluno_service/
+#   |- sd_academico_disciplina_service/
+#   |- sd_academico_turma_service/
+#   |- sd_academico_matricula_service/
+#   |- sd_academico_notificacao_service/
+#   |- sd_academico_historico_service/
+#
+# Por isso os caminhos de build apontam para "../". Rode com: docker compose up --build
+
 services:
+  # ---------------------------------------------------------------------------
+  # Infraestrutura
+  # ---------------------------------------------------------------------------
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # painel de gerenciamento (http://localhost:15672 - guest/guest)
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [sd-net]
+
+  # ---------------------------------------------------------------------------
+  # Service Discovery
+  # ---------------------------------------------------------------------------
+  eureka-server:
+    build: ../sd_academico_eureka_server
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      # a imagem JRE nao tem curl/wget; usamos o /dev/tcp do bash para checar a porta
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8761'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    networks: [sd-net]
+
+  # ---------------------------------------------------------------------------
+  # Microsserviços
+  # ---------------------------------------------------------------------------
+  aluno-service:
+    build: ../sd_academico_aluno_service
+    container_name: aluno-service
+    ports:
+      - "8082:8082"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks: [sd-net]
+
+  disciplina-service:
+    build: ../sd_academico_disciplina_service
+    container_name: disciplina-service
+    ports:
+      - "8083:8083"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks: [sd-net]
+
+  turma-service:
+    build: ../sd_academico_turma_service
+    container_name: turma-service
+    ports:
+      - "8084:8084"   # turma-service usa 8084 (8083 e do disciplina-service)
+      - "9093:9093"   # gRPC
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      SPRING_RABBITMQ_HOST: rabbitmq
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks: [sd-net]
+
+  notificacao-service:
+    build: ../sd_academico_notificacao_service
+    container_name: notificacao-service
+    ports:
+      - "8085:8085"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      SPRING_RABBITMQ_HOST: rabbitmq
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks: [sd-net]
+
+  historico-service:
+    build: ../sd_academico_historico_service
+    container_name: historico-service
+    ports:
+      - "8086:8086"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      SPRING_RABBITMQ_HOST: rabbitmq
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks: [sd-net]
+
+  matricula-service:
+    build: ../sd_academico_matricula_service
+    container_name: matricula-service
+    ports:
+      - "8081:8081"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      SPRING_RABBITMQ_HOST: rabbitmq
+      # canal gRPC para o turma-service (a chave tem hifen, por isso usamos SPRING_APPLICATION_JSON)
+      SPRING_APPLICATION_JSON: '{"spring.grpc.client.channels.turma-service.address":"static://turma-service:9093"}'
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      aluno-service:
+        condition: service_started
+      turma-service:
+        condition: service_started
+    networks: [sd-net]
+
+networks:
+  sd-net:
+    driver: bridge
