@@ -65,10 +65,14 @@ services:
     ports:
       - "8082:8082"
     environment:
+      SERVER_PORT: 8082
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      SPRING_RABBITMQ_HOST: rabbitmq
     depends_on:
       eureka-server:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks: [sd-net]
 
