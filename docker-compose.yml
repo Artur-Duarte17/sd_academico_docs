@@ -23,8 +23,8 @@ services:
     image: rabbitmq:3-management
     container_name: rabbitmq
     ports:
-      - "5672:5672"     # AMQP
-      - "15672:15672"   # painel de gerenciamento (http://localhost:15672 - guest/guest)
+      - "5672:5672" # AMQP
+      - "15672:15672" # painel de gerenciamento (http://localhost:15672 - guest/guest)
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -63,7 +63,7 @@ services:
     build: ../sd_academico_gateway
     container_name: gateway
     ports:
-      - "8080:8080"   # Swagger unico: http://localhost:8080/swagger-ui.html
+      - "8080:8080" # Swagger unico: http://localhost:8080/swagger-ui.html
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
@@ -83,6 +83,7 @@ services:
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      SPRING_RABBITMQ_HOST: rabbitmq
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -96,6 +97,7 @@ services:
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      SPRING_RABBITMQ_HOST: rabbitmq
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -105,8 +107,8 @@ services:
     build: ../sd_academico_turma_service
     container_name: turma-service
     ports:
-      - "8084:8084"   # turma-service usa 8084 (8083 e do disciplina-service)
-      - "9093:9093"   # gRPC
+      - "8084:8084" # turma-service usa 8084 (8083 e do disciplina-service)
+      - "9093:9093" # gRPC
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
