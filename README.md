@@ -352,3 +352,68 @@ Cada serviço REST expõe sua documentação interativa via **Springdoc OpenAPI*
 **➡️ http://localhost:8080/swagger-ui.html**
 
 Nessa página há um **dropdown** no canto superior direito para alternar entre os serviços (Aluno, Disciplina, Turma, Matrícula, Notificação e Histórico). O gateway faz proxy do `/v3/api-docs` de cada serviço (mesma origem, sem CORS), e os endpoints podem ser testados pelo "Try it out" — as chamadas passam pelo gateway (ex.: `POST http://localhost:8080/matricula/matriculas`).
+
+## 6. Reflexão do Grupo
+
+O desenvolvimento do Sistema Acadêmico Distribuído permitiu aplicar, em um único projeto, diferentes conceitos estudados na disciplina, como microsserviços, comunicação síncrona e assíncrona, invocação remota, serviço de nomes, mensageria, tolerância a falhas e consistência distribuída.
+
+### 6.1. Dificuldades encontradas
+
+Uma das principais dificuldades foi integrar serviços desenvolvidos separadamente. Embora cada microsserviço possua uma responsabilidade específica, o funcionamento completo de uma matrícula depende da comunicação entre Aluno, Turma, Matrícula, Notificação e Histórico.
+
+Também houve dificuldades relacionadas ao versionamento do projeto. Como os serviços estavam divididos em diferentes repositórios e branches, algumas versões apresentavam contratos, DTOs e configurações incompatíveis. Isso exigiu merges, correções e testes frequentes para garantir que todos os serviços funcionassem em conjunto.
+
+A implementação do gRPC exigiu a compreensão do arquivo `.proto`, da geração automática das classes, da configuração do canal e da separação entre cliente e servidor. Também foi necessário garantir que Matrícula e Turma utilizassem exatamente o mesmo contrato.
+
+Na mensageria, foi necessário padronizar exchanges, filas, routing keys e o formato das mensagens. Configurações incompatíveis faziam com que determinados consumidores não recebessem os eventos ou tentassem interpretar mensagens em formatos diferentes.
+
+Outro desafio foi a configuração da rede Docker. Dentro de um container, `localhost` representa o próprio container, e não a máquina ou outro serviço. Por isso, os serviços precisaram utilizar nomes como `rabbitmq`, `eureka-server` e `turma-service`.
+
+A consistência entre Matrícula e Turma também exigiu atenção. A reserva da vaga e o salvamento da matrícula acontecem em bancos diferentes, não sendo possível utilizar uma única transação local. Para reduzir inconsistências, foram implementadas operações de compensação.
+
+### 6.2. Decisões arquiteturais
+
+Foi adotado o padrão **database per service**, no qual cada microsserviço controla seu próprio banco de dados. Essa escolha reduz o acoplamento e impede que um serviço acesse diretamente as tabelas de outro.
+
+O gRPC foi utilizado entre Matrícula e Turma porque a reserva de uma vaga precisa de uma resposta imediata. Além disso, o Protocol Buffers fornece um contrato fortemente tipado entre cliente e servidor.
+
+O OpenFeign foi utilizado nas validações realizadas por REST, como a consulta do aluno e da disciplina. Essas operações são simples e se adaptam melhor às APIs HTTP já disponibilizadas pelos serviços.
+
+O RabbitMQ foi escolhido para Notificação e Histórico porque esses processamentos não precisam bloquear a criação da matrícula. Assim, o Matrícula Service publica o evento e continua sua execução sem esperar que todos os consumidores terminem.
+
+O Eureka Server foi utilizado para registrar e localizar os serviços por nomes lógicos, reduzindo a dependência de endereços fixos. O API Gateway foi adicionado como ponto único de entrada para as APIs e para a documentação Swagger.
+
+O cancelamento da matrícula foi implementado por mudança de status, em vez da exclusão do registro. Essa decisão preserva os dados e permite consultar posteriormente o histórico da operação.
+
+### 6.3. Limitações atuais
+
+O uso de bancos H2 em memória facilita a demonstração, mas faz com que os dados sejam perdidos quando os containers são reiniciados.
+
+A publicação dos eventos no RabbitMQ é realizada no modelo *best-effort*. Portanto, existe a possibilidade de a matrícula ser salva e o evento não ser publicado caso o broker esteja indisponível naquele momento.
+
+As operações de compensação reduzem o risco de inconsistência, mas não eliminam todos os cenários de falha. A própria operação compensatória também pode falhar.
+
+O ambiente utiliza apenas uma instância de cada serviço. Dessa forma, embora o Eureka e o balanceamento permitam expansão, a replicação e a alta disponibilidade não foram demonstradas diretamente.
+
+### 6.4. Possíveis melhorias
+
+Como evolução do projeto, poderiam ser implementadas as seguintes melhorias:
+
+- substituir os bancos H2 por bancos persistentes com volumes Docker;
+- utilizar o padrão **Transactional Outbox** para garantir a publicação dos eventos;
+- adicionar tentativas automáticas, filas de erro e **Dead Letter Queue** no RabbitMQ;
+- tornar os consumidores idempotentes, evitando registros duplicados;
+- implementar timeouts, retries e circuit breaker nas chamadas remotas;
+- adicionar autenticação e autorização no API Gateway;
+- criar testes unitários, testes de integração e testes de contrato;
+- configurar integração contínua para compilar e testar todos os serviços;
+- adicionar métricas, rastreamento distribuído e identificadores de correlação nos logs;
+- implementar rotinas de reconciliação entre matrículas ativas e vagas ocupadas.
+
+### 6.5. Aprendizados obtidos
+
+O projeto demonstrou que sistemas distribuídos não envolvem apenas separar uma aplicação em vários serviços. Essa arquitetura introduz problemas relacionados à rede, falhas parciais, contratos, concorrência, consistência dos dados e observabilidade.
+
+Também foi possível perceber que diferentes formas de comunicação devem ser utilizadas conforme a necessidade. O gRPC e o REST são adequados quando uma resposta imediata é necessária, enquanto o RabbitMQ permite maior desacoplamento entre produtores e consumidores.
+
+A principal conclusão do grupo é que uma arquitetura distribuída oferece autonomia e possibilidade de evolução independente dos serviços, mas exige mais planejamento, padronização, testes e mecanismos de tratamento de falhas.
