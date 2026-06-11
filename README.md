@@ -231,7 +231,7 @@ Todos os serviços sobem como containers a partir do `docker-compose.yml`:
 
 Painel em `http://localhost:8761` mostrando os 7 serviços (`ALUNO`, `DISCIPLINA`, `GATEWAY`, `HISTORICO`, `MATRICULA`, `NOTIFICACAO`, `TURMA`) registrados e `UP`:
 
-![Instâncias registradas no Eureka](evidencias/eureka-instances-up.jpeg)
+![Instâncias registradas no Eureka](evidencias/eureka-instances-up.png)
 
 ### 4.3. Mensageria (RabbitMQ)
 
